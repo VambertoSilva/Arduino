@@ -1,0 +1,314 @@
+int M1FC1 = 18;
+int M1FC2 = 19;
+int M1CLK = 49;
+int M1DIR = 47;
+int M1EN = 45;
+
+int M2FC1 = 2;
+int M2FC2 = 30;
+int M2CLK = 39;
+int M2DIR = 37;
+int M2EN = 35;
+
+int M3FC1 = 3;
+int M3FC2 = 21;
+int M3CLK = 29;
+int M3DIR = 27;
+int M3EN = 25;
+
+unsigned long motor[3] = { 0, 0, 0 };
+int calibration[3] = { 0, 0, 0 };
+int position[3] = { 0, 0, 0 };
+int backPosition[3] = { 0, 0, 0 };
+int inMovimentation[3] = { 0, 0, 0 };
+int velocity[3] = { 0, 0, 0 };
+int DEYVID[3] = { 0, 0, 0 };
+
+ISR(TIMER1_COMPA_vect) {
+
+  digitalWrite(M1CLK, !digitalRead(M1CLK));
+
+  motor[0]--;
+}
+
+ISR(TIMER3_COMPA_vect) {
+
+  digitalWrite(M2CLK, !digitalRead(M2CLK));
+  motor[1]--;
+}
+
+ISR(TIMER5_COMPA_vect) {
+
+  digitalWrite(M3CLK, !digitalRead(M3CLK));
+  motor[2]--;
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(M1CLK, OUTPUT);
+  pinMode(M2CLK, OUTPUT);
+  pinMode(M3CLK, OUTPUT);
+  pinMode(M1FC1, INPUT_PULLUP);
+  pinMode(M2FC1, INPUT_PULLUP);
+  pinMode(M3FC1, INPUT_PULLUP);
+  pinMode(M1FC2, INPUT_PULLUP);
+  pinMode(M2FC2, INPUT_PULLUP);
+  pinMode(M3FC2, INPUT_PULLUP);
+  pinMode(M1DIR, OUTPUT);
+  pinMode(M2DIR, OUTPUT);
+  pinMode(M3DIR, OUTPUT);
+  pinMode(M1EN, OUTPUT);
+  pinMode(M2EN, OUTPUT);
+  pinMode(M3EN, OUTPUT);
+
+  digitalWrite(M1EN, LOW);
+  digitalWrite(M2EN, LOW);
+  digitalWrite(M3EN, LOW);
+
+  digitalWrite(M1DIR, LOW);
+  digitalWrite(M2DIR, LOW);
+  digitalWrite(M3DIR, LOW);
+
+  TCCR1A = 0b00000000;
+  TCCR1B = 0b00001011;
+  TCNT1 = 0;
+  OCR1A = 155;
+
+  TCCR3A = 0b00000000;
+  TCCR3B = 0b00001011;
+  TCNT3 = 0;
+  OCR3A = 155;
+
+  TCCR5A = 0b00000000;
+  TCCR5B = 0b00001011;
+  TCNT5 = 0;
+  OCR5A = 155;
+
+  TIMSK1 = 0b00000000;
+  TIMSK3 = 0b00000000;
+  TIMSK5 = 0b00000000;
+}
+
+void funcCalibration() {
+
+  if (digitalRead(M1FC1) && calibration[0] == 0) {
+
+    digitalWrite(M1DIR, LOW);
+    motor[0] = 999999;
+    TIMSK1 = 0b00000010;
+  } else if (!digitalRead(M1FC1) && calibration[0] == 0) {
+
+    calibration[0] = 1;
+ 
+  }
+
+  if (digitalRead(M2FC1) && calibration[1] == 0) {
+
+    digitalWrite(M2DIR, LOW);
+    motor[1] = 999999;
+    TIMSK3 = 0b00000010;
+  } else if (!digitalRead(M2FC1) && calibration[1] == 0) {
+
+    calibration[1] = 1;
+  }
+
+  if (digitalRead(M3FC1) && calibration[2] == 0) {
+
+    digitalWrite(M3DIR, LOW);
+    motor[2] = 999999;
+    TIMSK5 = 0b00000010;
+
+  } else if (!digitalRead(M3FC1) && calibration[2] == 0) {
+
+    calibration[2] = 1;
+  }
+}
+
+
+void movimentation() {
+
+  if (calibration[2] == 1 && calibration[0] == 1 && calibration[1] == 1 && inMovimentation[1] == 0 && inMovimentation[0] == 0 && inMovimentation[2] == 0) {
+    do {
+      Serial.println("Insira a velocidade do motor 1: 2mm/s - 5mm/s");
+      while (!Serial.available()) {}
+      velocity[0] = Serial.readStringUntil('\n').toInt();
+    } while (velocity[0] < 2 || velocity[0] > 5);
+
+    OCR1A = 124000 / (velocity[0] * 200);
+
+
+    do {
+      Serial.println("Insira o quanto você quer que o motor 1 ande(em mm):");
+      while (!Serial.available()) {}
+      backPosition[0] = Serial.readStringUntil('\n').toInt();
+    } while (backPosition[0] < 0 || backPosition[0] > 1000);
+
+    if (backPosition[0] > position[0]) {
+      digitalWrite(M1DIR, HIGH);
+    } else {
+      digitalWrite(M1DIR, LOW);
+    }
+
+
+    DEYVID[0] = (backPosition[0] - position[0]) * 200;
+    position[0] = backPosition[0];
+    if (DEYVID[0] < 0) {
+      DEYVID[0] = DEYVID[0] * -1;
+    }
+
+    motor[0] = DEYVID[0];
+
+    Serial.println(motor[0]);
+    inMovimentation[0] = 1;
+    position[0] = backPosition[0];
+
+
+    do {
+      Serial.println("Insira a velocidade do motor 2: 2mm/s - 5mm/s");
+      while (!Serial.available()) {}
+      velocity[1] = Serial.readStringUntil('\n').toInt();
+    } while (velocity[1] < 2 || velocity[1] > 5);
+
+    OCR3A = 124000 / (velocity[1] * 200);
+
+
+    do {
+      Serial.println("Insira o quanto você quer que o motor 2 ande(em mm):");
+      while (!Serial.available()) {}
+      backPosition[1] = Serial.readStringUntil('\n').toInt();
+    } while (backPosition[1] < 0 || backPosition[1] > 1000);
+
+    if (backPosition[1] > position[1]) {
+      digitalWrite(M2DIR, HIGH);
+    } else {
+      digitalWrite(M2DIR, LOW);
+    }
+
+
+    DEYVID[1] = (backPosition[1] - position[1]) * 200;
+    position[1] = backPosition[1];
+    if (DEYVID[1] < 0) {
+      DEYVID[1] = DEYVID[1] * -1;
+    }
+
+    motor[1] = DEYVID[1];
+
+    Serial.println(motor[1]);
+    inMovimentation[1] = 1;
+    position[1] = backPosition[1];
+
+
+
+    do {
+      Serial.println("Insira a velocidade do motor 3: 2mm/s - 5mm/s");
+      while (!Serial.available()) {}
+      velocity[2] = Serial.readStringUntil('\n').toInt();
+    } while (velocity[2] < 2 || velocity[2] > 5);
+
+    OCR5A = 124000 / (velocity[2] * 200);
+
+
+
+    do {
+      Serial.println("Insira o quanto você quer que o motor 3 ande(em mm):");
+      while (!Serial.available()) {}
+      backPosition[2] = Serial.readStringUntil('\n').toInt();
+    } while (backPosition[2] < 0 || backPosition[2] > 1000);
+
+    if (backPosition[2] > position[2] || backPosition[2] == position[2]) {
+
+      digitalWrite(M3DIR, HIGH);
+    } else {
+      digitalWrite(M3DIR, LOW);
+    }
+
+
+
+
+
+    Serial.println("Position: ");
+    Serial.println(position[2]);
+    Serial.println("backPositon: ");
+    Serial.println(backPosition[2]);
+
+    DEYVID[2] = (backPosition[2] - position[2]) * 200;
+    position[2] = backPosition[2];
+    if (DEYVID[2] < 0) {
+      DEYVID[2] = DEYVID[2] * -1;
+    }
+
+    motor[2] = DEYVID[2];
+
+    Serial.println(motor[2]);
+    inMovimentation[2] = 1;
+    position[2] = backPosition[2];
+  }
+}
+
+void loop() {
+
+  funcCalibration();
+  movimentation();
+
+
+  if (motor[0] < 1 && calibration[0] == 1) {
+    TIMSK1 = 0b0000000;
+    inMovimentation[0] = 0;
+  } else if (digitalRead(M1FC1) && digitalRead(M1FC2)) {
+    TIMSK1 = 0b0000010;
+    inMovimentation[0] = 1;
+  }
+
+  if (!digitalRead(M1FC1)) {
+
+    digitalWrite(M1DIR, HIGH);
+    motor[0] = 1600;
+
+  } else if (!digitalRead(M1FC2)) {
+    digitalWrite(M1DIR, LOW);
+    motor[0] = 1600;
+  }
+
+
+  ///////////////////////////////////////////////////////////
+
+  if (motor[1] < 1 && calibration[1] == 1) {
+    TIMSK3 = 0b0000000;
+    inMovimentation[1] = 0;
+  } else if (digitalRead(M2FC1) && digitalRead(M2FC2)) {
+    TIMSK3 = 0b0000010;
+    inMovimentation[1] = 1;
+  }
+
+  if (!digitalRead(M2FC1)) {
+
+    digitalWrite(M2DIR, HIGH);
+    motor[1] = 1600;
+
+  } else if (!digitalRead(M2FC2)) {
+    digitalWrite(M2DIR, LOW);
+    motor[1] = 1600;
+  }
+
+  //////////////////////////////////////////////////////////////////////////
+
+  if (motor[2] < 1 && calibration[2] == 1) {
+    TIMSK5 = 0b00000000;
+    inMovimentation[2] = 0;
+  } else if ((digitalRead(M3FC1) && digitalRead(M3FC2)) && calibration[2] == 1) {
+    TIMSK5 = 0b0000010;
+    inMovimentation[2] = 1;
+  }
+
+  if (!digitalRead(M3FC1)) {
+
+    digitalWrite(M3DIR, HIGH);
+    motor[2] = 1600;
+    
+
+  } else if (!digitalRead(M3FC2)) {
+    digitalWrite(M3DIR, LOW);
+    motor[2] = 1600;
+  }
+}
